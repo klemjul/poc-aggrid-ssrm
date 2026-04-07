@@ -62,16 +62,18 @@ type SearchResult struct {
 	LastRow int              `json:"lastRow"`
 }
 
-// allowedColumns is a whitelist used to prevent SQL injection from column names.
-var allowedColumns = map[string]bool{
-	"id":          true,
-	"name":        true,
-	"category":    true,
-	"subcategory": true,
-	"price":       true,
-	"quantity":    true,
-	"rating":      true,
-	"created_at":  true,
+// allowedColumns maps user-provided column names to hardcoded SQL column identifiers.
+// Column names are NEVER taken directly from user input in SQL strings — the value
+// from this map (a compile-time constant) is used instead.
+var allowedColumns = map[string]string{
+	"id":          "id",
+	"name":        "name",
+	"category":    "category",
+	"subcategory": "subcategory",
+	"price":       "price",
+	"quantity":    "quantity",
+	"rating":      "rating",
+	"created_at":  "created_at",
 }
 
 // leafColumns are the columns selected for leaf-level (non-grouped) rows.
@@ -81,15 +83,25 @@ var leafColumns = []string{
 	"created_at::text AS created_at",
 }
 
+// safeCol looks up a column name in the allowedColumns whitelist and returns the
+// hardcoded SQL identifier (not the user-provided value). Returns an error if the
+// column name is not in the whitelist.
+func safeCol(userCol string) (string, error) {
+	if col, ok := allowedColumns[userCol]; ok {
+		return col, nil
+	}
+	return "", fmt.Errorf("disallowed column: %s", userCol)
+}
+
 // BuildDataQuery returns the main data SELECT and a matching COUNT query together
 // with the positional argument slice.
 func BuildDataQuery(req SearchRequest) (dataSQL, countSQL string, args []any, err error) {
 	grouping := isGrouping(req)
 	groupCol := ""
 	if grouping {
-		groupCol = req.RowGroupCols[len(req.GroupKeys)].Field
-		if !allowedColumns[groupCol] {
-			return "", "", nil, fmt.Errorf("disallowed group column: %s", groupCol)
+		groupCol, err = safeCol(req.RowGroupCols[len(req.GroupKeys)].Field)
+		if err != nil {
+			return "", "", nil, err
 		}
 	}
 
@@ -108,9 +120,9 @@ func BuildDataQuery(req SearchRequest) (dataSQL, countSQL string, args []any, er
 
 	// --- WHERE clauses from groupKeys (drill-down) ---
 	for i, key := range req.GroupKeys {
-		col := req.RowGroupCols[i].Field
-		if !allowedColumns[col] {
-			return "", "", nil, fmt.Errorf("disallowed group key column: %s", col)
+		col, cerr := safeCol(req.RowGroupCols[i].Field)
+		if cerr != nil {
+			return "", "", nil, cerr
 		}
 		args = append(args, key)
 		conditions = append(conditions, fmt.Sprintf("%s = $%d", col, len(args)))
@@ -165,9 +177,10 @@ func isGrouping(req SearchRequest) bool {
 // buildFilter converts filterModel entries into SQL fragments.
 func buildFilter(filterModel map[string]FilterModel, args *[]any) (string, []any, error) {
 	var parts []string
-	for col, fm := range filterModel {
-		if !allowedColumns[col] {
-			return "", nil, fmt.Errorf("disallowed filter column: %s", col)
+	for userCol, fm := range filterModel {
+		col, err := safeCol(userCol)
+		if err != nil {
+			return "", nil, err
 		}
 		part, err := buildFilterEntry(col, fm, args)
 		if err != nil {
@@ -261,14 +274,15 @@ func buildOrder(sortModel []SortModel, grouping bool, groupCol string) (string, 
 	}
 	var parts []string
 	for _, s := range sortModel {
-		if !allowedColumns[s.ColID] {
-			return "", fmt.Errorf("disallowed sort column: %s", s.ColID)
+		col, err := safeCol(s.ColID)
+		if err != nil {
+			return "", err
 		}
 		dir := "ASC"
 		if strings.ToLower(s.Sort) == "desc" {
 			dir = "DESC"
 		}
-		parts = append(parts, fmt.Sprintf("%s %s", s.ColID, dir))
+		parts = append(parts, fmt.Sprintf("%s %s", col, dir))
 	}
 	return "ORDER BY " + strings.Join(parts, ", "), nil
 }

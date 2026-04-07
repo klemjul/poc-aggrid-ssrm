@@ -10,6 +10,8 @@ jobs:
   lint-go:
     name: Lint Go
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -28,6 +30,8 @@ jobs:
   lint-frontend:
     name: Lint Frontend
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -53,6 +57,8 @@ jobs:
   test-go:
     name: Go Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     services:
       postgres:
         image: postgres:17-alpine
@@ -91,6 +97,8 @@ jobs:
   build-frontend:
     name: Build Frontend
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -112,6 +120,8 @@ jobs:
   build-docker:
     name: Build Docker Images
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
