@@ -50,7 +50,7 @@ func (h *Handler) SearchProducts(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 
 	cols, err := rows.Columns()
 	if err != nil {
@@ -107,5 +107,5 @@ func (h *Handler) SearchProducts(w http.ResponseWriter, r *http.Request) {
 
 // HealthCheck handles GET /healthz.
 func HealthCheck(w http.ResponseWriter, _ *http.Request) {
-	fmt.Fprintln(w, "ok")
+	_, _ = fmt.Fprintln(w, "ok")
 }

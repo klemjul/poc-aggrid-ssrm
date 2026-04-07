@@ -112,7 +112,7 @@ func postSearch(t *testing.T, h *api.Handler, req query.SearchRequest) *httptest
 
 func TestSearchProducts_AllRows(t *testing.T) {
 	db := testDB(t)
-	defer db.Close()
+	defer db.Close() //nolint:errcheck
 	setupTestDB(t, db)
 	h := newHandler(db)
 
@@ -135,7 +135,7 @@ func TestSearchProducts_AllRows(t *testing.T) {
 
 func TestSearchProducts_TextFilter(t *testing.T) {
 	db := testDB(t)
-	defer db.Close()
+	defer db.Close() //nolint:errcheck
 	setupTestDB(t, db)
 	h := newHandler(db)
 
@@ -150,7 +150,9 @@ func TestSearchProducts_TextFilter(t *testing.T) {
 		t.Fatalf("status %d: %s", w.Code, w.Body.String())
 	}
 	var resp query.SearchResult
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
 	if len(resp.Rows) != 2 {
 		t.Errorf("expected 2 rows, got %d", len(resp.Rows))
 	}
@@ -158,7 +160,7 @@ func TestSearchProducts_TextFilter(t *testing.T) {
 
 func TestSearchProducts_GroupByCategory(t *testing.T) {
 	db := testDB(t)
-	defer db.Close()
+	defer db.Close() //nolint:errcheck
 	setupTestDB(t, db)
 	h := newHandler(db)
 
@@ -174,7 +176,9 @@ func TestSearchProducts_GroupByCategory(t *testing.T) {
 		t.Fatalf("status %d: %s", w.Code, w.Body.String())
 	}
 	var resp query.SearchResult
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
 	// Should return 2 distinct categories: Electronics, Clothing
 	if len(resp.Rows) != 2 {
 		t.Errorf("expected 2 category groups, got %d", len(resp.Rows))
@@ -183,7 +187,7 @@ func TestSearchProducts_GroupByCategory(t *testing.T) {
 
 func TestSearchProducts_GroupDrillDown(t *testing.T) {
 	db := testDB(t)
-	defer db.Close()
+	defer db.Close() //nolint:errcheck
 	setupTestDB(t, db)
 	h := newHandler(db)
 
@@ -200,7 +204,9 @@ func TestSearchProducts_GroupDrillDown(t *testing.T) {
 		t.Fatalf("status %d: %s", w.Code, w.Body.String())
 	}
 	var resp query.SearchResult
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
 	// Electronics has Phones and Laptops
 	if len(resp.Rows) != 2 {
 		t.Errorf("expected 2 subcategory groups for Electronics, got %d", len(resp.Rows))
@@ -209,7 +215,7 @@ func TestSearchProducts_GroupDrillDown(t *testing.T) {
 
 func TestSearchProducts_Pagination(t *testing.T) {
 	db := testDB(t)
-	defer db.Close()
+	defer db.Close() //nolint:errcheck
 	setupTestDB(t, db)
 	h := newHandler(db)
 
@@ -218,7 +224,9 @@ func TestSearchProducts_Pagination(t *testing.T) {
 		t.Fatalf("status %d: %s", w.Code, w.Body.String())
 	}
 	var resp query.SearchResult
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
 	if len(resp.Rows) != 2 {
 		t.Errorf("expected 2 rows, got %d", len(resp.Rows))
 	}
@@ -230,7 +238,7 @@ func TestSearchProducts_Pagination(t *testing.T) {
 
 func TestSearchProducts_MethodNotAllowed(t *testing.T) {
 	db := testDB(t)
-	defer db.Close()
+	defer db.Close() //nolint:errcheck
 	h := newHandler(db)
 	r := httptest.NewRequest(http.MethodGet, "/api/search-products", nil)
 	w := httptest.NewRecorder()

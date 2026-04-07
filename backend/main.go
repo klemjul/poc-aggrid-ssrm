@@ -17,7 +17,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("connect to database: %v", err)
 	}
-	defer database.Close()
+	defer database.Close() //nolint:errcheck
 
 	if err := migration.Apply(database); err != nil {
 		log.Fatalf("apply migration: %v", err)

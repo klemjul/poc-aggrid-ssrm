@@ -79,12 +79,12 @@ func seed(database *sql.DB) error {
 			rating := math_round2(float64(r.Intn(41)+10) / 10.0)
 
 			if _, err := stmt.Exec(randomName(r), cat.name, sub, price, qty, rating); err != nil {
-				stmt.Close()
+				_ = stmt.Close()
 				tx.Rollback() //nolint:errcheck
 				return fmt.Errorf("insert row %d: %w", i, err)
 			}
 		}
-		stmt.Close()
+		_ = stmt.Close()
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("commit batch: %w", err)
 		}
@@ -105,7 +105,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("connect to database: %v", err)
 	}
-	defer database.Close()
+	defer database.Close() //nolint:errcheck
 
 	if err := migration.Apply(database); err != nil {
 		log.Fatalf("apply migration: %v", err)
