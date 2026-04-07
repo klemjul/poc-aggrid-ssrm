@@ -1,0 +1,19 @@
+version: "2"
+
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+
+linters-settings:
+  govet:
+    enable-all: false
+
+issues:
+  exclude-rules:
+    # Allow unhandled errors in defer/rollback
+    - linters: [errcheck]
+      text: "tx\\.Rollback"
