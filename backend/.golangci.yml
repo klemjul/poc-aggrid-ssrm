@@ -10,9 +10,3 @@ linters:
   settings:
     govet:
       enable-all: false
-
-exclusions:
-  rules:
-    # Allow unhandled errors in defer/rollback
-    - linters: [errcheck]
-      text: "tx\\.Rollback"
