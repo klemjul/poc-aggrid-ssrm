@@ -250,7 +250,7 @@ func TestSearchProducts_MethodNotAllowed(t *testing.T) {
 
 func TestSearchProducts_InvalidJSON(t *testing.T) {
 	db := testDB(t)
-	defer db.Close()
+	defer db.Close() //nolint:errcheck
 	h := newHandler(db)
 	r := httptest.NewRequest(http.MethodPost, "/api/search-products", bytes.NewBufferString("{bad json"))
 	r.Header.Set("Content-Type", "application/json")
