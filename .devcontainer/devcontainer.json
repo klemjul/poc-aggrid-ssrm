@@ -1,0 +1,62 @@
+{
+  "name": "poc-aggrid-ssrm",
+  "dockerComposeFile": [
+    "../docker-compose.yml",
+    "docker-compose.devcontainer.yml"
+  ],
+  "service": "devcontainer",
+  "runServices": ["db", "devcontainer"],
+  "workspaceFolder": "/workspace",
+
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.25"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "24"
+    }
+  },
+
+  "forwardPorts": [5432, 8080, 5173],
+  "portsAttributes": {
+    "5432": { "label": "PostgreSQL", "onAutoForward": "silent" },
+    "8080": { "label": "Backend API", "onAutoForward": "notify" },
+    "5173": { "label": "Frontend Dev Server", "onAutoForward": "openBrowser" }
+  },
+
+  "postCreateCommand": "cd /workspace/backend && go mod download && cd /workspace/frontend && npm install",
+
+  "remoteEnv": {
+    "DB_HOST": "db",
+    "DB_PORT": "5432",
+    "DB_USER": "postgres",
+    "DB_PASSWORD": "postgres",
+    "DB_NAME": "products_db",
+    "DB_SSLMODE": "disable",
+    "PORT": "8080",
+    "VITE_API_URL": "http://localhost:8080"
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "go.useLanguageServer": true,
+        "editor.formatOnSave": true,
+        "[go]": {
+          "editor.defaultFormatter": "golang.go"
+        },
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[typescriptreact]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        }
+      }
+    }
+  }
+}
