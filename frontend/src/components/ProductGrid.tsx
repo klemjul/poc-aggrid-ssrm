@@ -1,8 +1,8 @@
 import { useCallback, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import type { ColDef, IServerSideDatasource, IServerSideGetRowsParams } from 'ag-grid-community';
-import 'ag-grid-community/styles/ag-grid.css';
-import 'ag-grid-community/styles/ag-theme-alpine.css';
+
+import { themeQuartz } from 'ag-grid-community';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080';
 
@@ -118,9 +118,11 @@ export default function ProductGrid() {
         serverSideDatasource={datasource()}
         rowGroupPanelShow="always"
         groupDisplayType="multipleColumns"
+        pagination={true}
+        paginationPageSize={100}
         cacheBlockSize={100}
-        maxBlocksInCache={10}
         animateRows={true}
+        theme={themeQuartz}
       />
     </div>
   );

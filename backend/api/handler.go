@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/klemjul/poc-aggrid-ssrm/backend/query"
 )
@@ -70,6 +71,15 @@ func (h *Handler) SearchProducts(w http.ResponseWriter, r *http.Request) {
 		}
 		row := make(map[string]any, len(cols))
 		for i, col := range cols {
+			// lib/pq returns NUMERIC columns as []byte; convert to float64
+			// so encoding/json serialises them as numbers, not base64.
+			if b, ok := values[i].([]byte); ok {
+				if f, err := strconv.ParseFloat(string(b), 64); err == nil {
+					values[i] = f
+				} else {
+					values[i] = string(b)
+				}
+			}
 			row[col] = values[i]
 		}
 		result = append(result, row)
