@@ -11,9 +11,8 @@ linters:
     govet:
       enable-all: false
 
-issues:
-  exclusions:
-    rules:
-      # Allow unhandled errors in defer/rollback
-      - linters: [errcheck]
-        text: "tx\\.Rollback"
+exclusions:
+  rules:
+    # Allow unhandled errors in defer/rollback
+    - linters: [errcheck]
+      text: "tx\\.Rollback"
