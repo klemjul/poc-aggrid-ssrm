@@ -7,13 +7,13 @@ linters:
     - errcheck
     - ineffassign
     - unused
-
-linters-settings:
-  govet:
-    enable-all: false
+  settings:
+    govet:
+      enable-all: false
 
 issues:
-  exclude-rules:
-    # Allow unhandled errors in defer/rollback
-    - linters: [errcheck]
-      text: "tx\\.Rollback"
+  exclusions:
+    rules:
+      # Allow unhandled errors in defer/rollback
+      - linters: [errcheck]
+        text: "tx\\.Rollback"
