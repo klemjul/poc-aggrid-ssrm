@@ -1,116 +1,102 @@
 # AG-Grid Server Side Row Model POC
 
-A proof-of-concept full-stack application demonstrating [AG-Grid](https://www.ag-grid.com/) in **Server Side Row Model** (SSRM) mode with:
+This proof of concept explores how [AG-Grid's Server Side Row Model](https://www.ag-grid.com/react-data-grid/server-side-model/) (SSRM) works end-to-end with a Go backend and PostgreSQL database. The goal is to validate that AG-Grid can efficiently handle **100 000+ rows** with server-side pagination, sorting, filtering, and row grouping — without loading all data into the browser.
 
-- **Frontend** — React 19 + Vite + TypeScript, AG-Grid Enterprise (SSRM, row grouping, sorting, filtering)
-- **Backend** — Go REST API that translates AG-Grid requests into PostgreSQL queries
-- **Database** — PostgreSQL 17 with a `products` table (100 000 rows)
+### Tech Stack
+
+| Layer    | Technology                                     |
+| -------- | ---------------------------------------------- |
+| Frontend | React 19, TypeScript, Vite, AG-Grid Enterprise |
+| Backend  | Go 1.25                                        |
+| Database | PostgreSQL 17                                  |
+
+### What it demonstrates
+
+- **Server-side pagination** — the grid requests rows in pages, the backend returns only the requested slice
+- **Sorting & filtering** — sort/filter parameters are sent to the API and translated to parameterised SQL
+- **Row grouping** — group by `category` and `subcategory` with drill-down, computed entirely server-side
+- **Dev Container** — one-click setup with pre-configured PostgreSQL, Go, and Node
 
 ---
 
-## Quick Start
+## Getting Started
 
-### Prerequisites
+### Option A — Dev Container (recommended)
 
-- [Docker](https://docs.docker.com/get-docker/) & Docker Compose
+> Requires [VS Code](https://code.visualstudio.com/) + [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) + [Docker](https://docs.docker.com/get-docker/)
 
-### 1. Start the stack
+1. **Open in Dev Container** — open the repo in VS Code, then `Ctrl+Shift+P` → **Dev Containers: Reopen in Container**. This starts PostgreSQL, installs dependencies, and configures environment variables automatically.
+
+2. **Seed the database**
+
+   ```bash
+   cd backend && go run ./cmd/seed/
+   ```
+
+3. **Start the backend**
+
+   ```bash
+   cd backend && go run .
+   ```
+
+4. **Start the frontend** (second terminal)
+
+   ```bash
+   cd frontend && npm run dev
+   ```
+
+5. Open <http://localhost:5173>
+
+### Option B — Docker Compose (standalone)
+
+> Requires [Docker](https://docs.docker.com/get-docker/) & Docker Compose
 
 ```bash
 cp .env.example .env
 docker compose up --build -d
-```
-
-This starts:
-
-| Service  | Port  | Description                    |
-|----------|-------|--------------------------------|
-| db       | 5432  | PostgreSQL 17                  |
-| backend  | 8080  | Go REST API                    |
-| frontend | 5173  | React app (served by nginx)    |
-
-### 2. Seed the database
-
-```bash
 docker compose run --rm seed
 ```
 
-Inserts 100 000 sample product rows (skips if already seeded).
+Open <http://localhost:5173>
 
-### 3. Open the app
-
-Navigate to <http://localhost:5173>
+| Service  | Port | Description                 |
+| -------- | ---- | --------------------------- |
+| db       | 5432 | PostgreSQL 17               |
+| backend  | 8080 | Go REST API                 |
+| frontend | 5173 | React app (served by nginx) |
 
 ---
 
 ## Development
 
-### Backend (Go)
+### Backend
 
 ```bash
 cd backend
-go run . # requires a running PostgreSQL instance
+go run .                # start the API (needs PostgreSQL)
+go test ./... -v        # all tests (unit + integration)
+go test ./query/... -v  # unit tests only (no DB required)
 ```
 
-Set environment variables (see `.env.example`) or export them manually.
-
-```bash
-# Run all tests (unit + integration)
-go test ./... -v
-
-# Unit tests only (no DB required)
-go test ./query/... -v
-```
-
-### Frontend (React)
+### Frontend
 
 ```bash
 cd frontend
-npm install
-VITE_API_URL=http://localhost:8080 npm run dev
+npm run dev             # start dev server
+npm run lint            # ESLint
+npm run format:check    # Prettier check
+npm run format          # Prettier fix
+npm run build           # production build
 ```
 
-```bash
-npm run lint          # ESLint
-npm run format:check  # Prettier check
-npm run format        # Prettier fix
-npm run build         # Production build
-```
-
----
-
-## Architecture
-
-```
-frontend (React + AG-Grid SSRM)
-    │  POST /api/search-products  { startRow, endRow, sortModel, filterModel, rowGroupCols, groupKeys }
-    ▼
-backend (Go HTTP API)
-    │  BuildDataQuery → parameterised SQL
-    ▼
-PostgreSQL 17 — products table
-```
-
-### Products table schema
-
-| Column      | Type           | Notes          |
-|-------------|----------------|----------------|
-| id          | UUID           | PK, auto-gen   |
-| name        | TEXT           |                |
-| category    | TEXT           | groupable      |
-| subcategory | TEXT           | groupable      |
-| price       | NUMERIC(10,2)  |                |
-| quantity    | INT            |                |
-| rating      | NUMERIC(3,2)   |                |
-| created_at  | TIMESTAMPTZ    | default NOW()  |
+Environment variables are documented in `.env.example`. In the Dev Container they are pre-configured via `remoteEnv`.
 
 ### API
 
-`POST /api/search-products`
-
-Request body (AG-Grid SSRM format):
+**`POST /api/search-products`** — returns a page of rows matching the AG-Grid SSRM request format.
 
 ```json
+// Request
 {
   "startRow": 0,
   "endRow": 100,
@@ -121,29 +107,30 @@ Request body (AG-Grid SSRM format):
   "rowGroupCols": [{ "field": "category" }],
   "groupKeys": []
 }
-```
 
-Response:
-
-```json
+// Response
 {
-  "rows": [...],
+  "rows": [{ "name": "...", "category": "...", "price": 29.99, ... }],
   "lastRow": 42
 }
 ```
 
-`GET /healthz` — liveness probe
+### Database schema
 
----
+| Column      | Type          | Notes         |
+| ----------- | ------------- | ------------- |
+| id          | UUID          | PK, auto-gen  |
+| name        | TEXT          |               |
+| category    | TEXT          | groupable     |
+| subcategory | TEXT          | groupable     |
+| price       | NUMERIC(10,2) |               |
+| quantity    | INT           |               |
+| rating      | NUMERIC(3,2)  |               |
+| created_at  | TIMESTAMPTZ   | default NOW() |
 
-## CI
+## Useful Links
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on every push and pull request:
-
-| Job              | Description                                              |
-|------------------|----------------------------------------------------------|
-| `lint-go`        | golangci-lint                                            |
-| `lint-frontend`  | ESLint + Prettier check                                  |
-| `test-go`        | `go test ./...` with a PostgreSQL service container      |
-| `build-frontend` | `npm run build`                                          |
-| `build-docker`   | Docker image builds for backend, seed, and frontend      |
+- [AG-Grid Server Side Row Model](https://www.ag-grid.com/react-data-grid/server-side-model/)
+- [Implementing the server side datasource](https://www.ag-grid.com/react-data-grid/server-side-model-datasource/#implementing-the-server-side-datasource)
+- [AG-Grid Row Grouping (SSRM)](https://www.ag-grid.com/react-data-grid/server-side-model-grouping/)
+- [AG-Grid Filtering (SSRM)](https://www.ag-grid.com/react-data-grid/server-side-model-filtering/)
