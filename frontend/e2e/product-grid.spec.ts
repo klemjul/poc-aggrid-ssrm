@@ -33,7 +33,7 @@ test.describe('ProductGrid – AG Grid SSRM', () => {
     });
     await page.goto('/');
 
-    const expectedHeaders = ['Name', 'Category', 'Subcategory', 'Price', 'Quantity', 'Rating'];
+    const expectedHeaders = ['Name', 'Category', 'Subcategory', 'Price', 'Quantity', 'Rating', 'Created At'];
     for (const header of expectedHeaders) {
       await expect(
         page.locator('.ag-header-cell-text', { hasText: header }).first(),
