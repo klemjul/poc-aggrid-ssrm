@@ -9,6 +9,7 @@ import (
 	"log"
 	"math/rand/v2"
 	"os"
+	"strconv"
 	"time"
 
 	opensearchgo "github.com/opensearch-project/opensearch-go/v2"
@@ -17,8 +18,8 @@ import (
 	"github.com/klemjul/poc-aggrid-ssrm/backend-opensearch/opensearch"
 )
 
-const totalDocs = 100_000
-const batchSize = 500
+const batchSize   = 500
+const logInterval = 10_000
 
 var categories = []struct {
 	name          string
@@ -86,7 +87,7 @@ func countDocs(client *opensearchgo.Client, index string) (int, error) {
 	return cr.Count, nil
 }
 
-func seed(client *opensearchgo.Client, index string) error {
+func seed(client *opensearchgo.Client, index string, totalDocs int) error {
 	// Use a fixed seed for deterministic data generation (same as the PostgreSQL seed).
 	r := rand.New(rand.NewPCG(42, 0)) //nolint:gosec // deterministic seed, not security sensitive
 
@@ -157,7 +158,7 @@ func seed(client *opensearchgo.Client, index string) error {
 			return fmt.Errorf("bulk request contained errors at batch starting at %d", start)
 		}
 
-		if start%10000 == 0 {
+		if start%logInterval == 0 || end == totalDocs {
 			log.Printf("indexed %d / %d documents", end, totalDocs)
 		}
 	}
@@ -171,6 +172,14 @@ func main() {
 	}
 
 	index := getEnv("OPENSEARCH_INDEX", "products")
+
+	// SEED_TOTAL allows overriding the default document count (useful in CI).
+	totalDocs := 100_000
+	if v := os.Getenv("SEED_TOTAL"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			totalDocs = n
+		}
+	}
 
 	if err := opensearch.EnsureIndex(client, index); err != nil {
 		log.Fatalf("ensure index: %v", err)
@@ -187,7 +196,7 @@ func main() {
 	}
 
 	log.Printf("seeding %d products…", totalDocs)
-	if err := seed(client, index); err != nil {
+	if err := seed(client, index, totalDocs); err != nil {
 		log.Fatalf("seed: %v", err)
 	}
 	log.Println("seeding complete")
