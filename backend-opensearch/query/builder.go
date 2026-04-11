@@ -89,6 +89,13 @@ func filterField(field string) string {
 // BuildSearchBody builds the OpenSearch request body for the given SearchRequest.
 // It returns the body map and whether the query is a group-level query.
 func BuildSearchBody(req SearchRequest) (map[string]any, bool, error) {
+	if req.StartRow < 0 || req.EndRow < req.StartRow {
+		return nil, false, fmt.Errorf("invalid pagination bounds: startRow=%d endRow=%d", req.StartRow, req.EndRow)
+	}
+	if len(req.GroupKeys) > len(req.RowGroupCols) {
+		return nil, false, fmt.Errorf("groupKeys length (%d) exceeds rowGroupCols length (%d)", len(req.GroupKeys), len(req.RowGroupCols))
+	}
+
 	grouping := isGrouping(req)
 
 	filterClauses, err := buildFilterClauses(req)
