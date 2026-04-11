@@ -66,7 +66,9 @@ test.describe('ProductGrid – OpenSearch Integration', () => {
     // Every visible name should contain "Premium" (case-insensitive)
     const visibleNames = await nameCells.allTextContents();
     for (const name of visibleNames) {
-      expect(name.toLowerCase()).toContain('premium');
+      const trimmed = name.trim();
+      expect(trimmed).not.toBe('');
+      expect(trimmed.toLowerCase()).toContain('premium');
     }
   });
 
@@ -103,6 +105,7 @@ test.describe('ProductGrid – OpenSearch Integration', () => {
     const priceTexts = await priceCells.allTextContents();
     for (const text of priceTexts) {
       const price = parseFloat(text.replace(/[^0-9.]/g, ''));
+      expect(isNaN(price)).toBe(false);
       expect(price).toBeLessThanOrEqual(50);
     }
   });
