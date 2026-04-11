@@ -198,8 +198,9 @@ func main() {
 		os.Exit(0)
 	}
 
-	log.Printf("seeding %d products…", totalDocs)
-	if err := seed(client, index, totalDocs); err != nil {
+	remaining := totalDocs - count
+	log.Printf("seeding %d products to reach %d total…", remaining, totalDocs)
+	if err := seed(client, index, remaining); err != nil {
 		log.Fatalf("seed: %v", err)
 	}
 	log.Println("seeding complete")

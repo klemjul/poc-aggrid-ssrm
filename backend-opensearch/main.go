@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/rs/cors"
 
@@ -37,7 +38,15 @@ func main() {
 
 	addr := ":" + getEnv("PORT", "8080")
 	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, corsHandler); err != nil {
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           corsHandler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }

@@ -57,10 +57,17 @@ test.describe('ProductGrid – OpenSearch Integration', () => {
       timeout: 30_000,
     });
 
-    // After filtering, rows should still be visible (seed has "Premium" items)
-    await expect(
-      page.locator('[role="gridcell"][col-id="name"]').first(),
-    ).toBeVisible({ timeout: 30_000 });
+    // Verify filter was actually applied: count should be reduced compared to unfiltered
+    const nameCells = page.locator('[role="gridcell"][col-id="name"]');
+    await expect(nameCells.first()).toBeVisible({ timeout: 30_000 });
+    const totalAfter = await nameCells.count();
+    expect(totalAfter).toBeLessThan(totalBefore);
+
+    // Every visible name should contain "Premium" (case-insensitive)
+    const visibleNames = await nameCells.allTextContents();
+    for (const name of visibleNames) {
+      expect(name.toLowerCase()).toContain('premium');
+    }
   });
 
   test('number filter restricts results by price', async ({ page }) => {
@@ -74,7 +81,8 @@ test.describe('ProductGrid – OpenSearch Integration', () => {
     expect(rowsBefore).toBeGreaterThan(0);
 
     // Use a mid-range threshold that is statistically safe even with 1 000 seeded
-    // docs (prices are uniform 1.00–999.99 so ~95% of products will be >= 50).
+    // docs (prices are uniform 1.00–999.99 so ~5% of products will be <= 50).
+    // We use "less than or equal" filter direction so the count decreases substantially.
     const priceFilterInput = page.locator(
       'input[aria-label="Price Filter Input"][type="number"]',
     );
@@ -85,10 +93,18 @@ test.describe('ProductGrid – OpenSearch Integration', () => {
       timeout: 30_000,
     });
 
-    // Grid should display rows — products priced >= $50 definitely exist in the seed.
-    await expect(
-      page.locator('[role="gridcell"][col-id="name"]').first(),
-    ).toBeVisible({ timeout: 30_000 });
+    // Verify filter was applied: the result count must be less than the unfiltered count
+    const priceCells = page.locator('[role="gridcell"][col-id="price"]');
+    await expect(priceCells.first()).toBeVisible({ timeout: 30_000 });
+    const rowsAfter = await page.locator('[role="gridcell"][col-id="name"]').count();
+    expect(rowsAfter).toBeLessThan(rowsBefore);
+
+    // Every visible price must satisfy the filter (price <= 50)
+    const priceTexts = await priceCells.allTextContents();
+    for (const text of priceTexts) {
+      const price = parseFloat(text.replace(/[^0-9.]/g, ''));
+      expect(price).toBeLessThanOrEqual(50);
+    }
   });
 
   test('groups rows by category using real OpenSearch data', async ({ page }) => {
