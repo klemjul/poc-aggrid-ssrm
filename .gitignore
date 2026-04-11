@@ -4,6 +4,8 @@
 # Go build artifacts
 backend/backend
 backend/seed
+backend-opensearch/backend
+backend-opensearch/seed
 
 # Node modules and build output
 frontend/node_modules/

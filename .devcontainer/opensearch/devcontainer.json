@@ -1,0 +1,58 @@
+{
+  "name": "poc-aggrid-ssrm (OpenSearch)",
+  "dockerComposeFile": [
+    "../../docker-compose.opensearch.yml",
+    "docker-compose.devcontainer.opensearch.yml"
+  ],
+  "service": "devcontainer",
+  "runServices": ["opensearch", "devcontainer"],
+  "workspaceFolder": "/workspace",
+
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.25"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "24"
+    }
+  },
+
+  "forwardPorts": [9200, 8080, 5173],
+  "portsAttributes": {
+    "9200": { "label": "OpenSearch", "onAutoForward": "silent" },
+    "8080": { "label": "Backend API", "onAutoForward": "notify" },
+    "5173": { "label": "Frontend Dev Server", "onAutoForward": "openBrowser" }
+  },
+
+  "postCreateCommand": "cd /workspace/backend-opensearch && go mod download && cd /workspace/frontend && npm install",
+
+  "remoteEnv": {
+    "OPENSEARCH_URL": "http://opensearch:9200",
+    "OPENSEARCH_INDEX": "products",
+    "PORT": "8080",
+    "VITE_API_URL": "http://localhost:8080"
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "go.useLanguageServer": true,
+        "editor.formatOnSave": true,
+        "[go]": {
+          "editor.defaultFormatter": "golang.go"
+        },
+        "[typescript]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[typescriptreact]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        }
+      }
+    }
+  }
+}

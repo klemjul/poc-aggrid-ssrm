@@ -1,6 +1,15 @@
 # AG-Grid Server Side Row Model POC
 
-This proof of concept explores how [AG-Grid's Server Side Row Model](https://www.ag-grid.com/react-data-grid/server-side-model/) (SSRM) works end-to-end with a Go backend and PostgreSQL database. The goal is to validate that AG-Grid can efficiently handle **100 000+ rows** with server-side pagination, sorting, filtering, and row grouping — without loading all data into the browser.
+This proof of concept explores how [AG-Grid's Server Side Row Model](https://www.ag-grid.com/react-data-grid/server-side-model/) (SSRM) works end-to-end with a Go backend. The goal is to validate that AG-Grid can efficiently handle **100 000+ rows** with server-side pagination, sorting, filtering, and row grouping — without loading all data into the browser.
+
+Two backend variants are provided:
+
+| Variant       | Backend directory      | Database           | Compose file                    |
+| ------------- | ---------------------- | ------------------ | ------------------------------- |
+| **PostgreSQL** | `backend/`            | PostgreSQL 17      | `docker-compose.yml`            |
+| **OpenSearch** | `backend-opensearch/` | OpenSearch 2       | `docker-compose.opensearch.yml` |
+
+Both variants expose the same HTTP API (`POST /api/search-products`) and work with the same React/AG-Grid frontend.
 
 ### Tech Stack
 
@@ -8,24 +17,24 @@ This proof of concept explores how [AG-Grid's Server Side Row Model](https://www
 | -------- | ---------------------------------------------- |
 | Frontend | React 19, TypeScript, Vite, AG-Grid Enterprise |
 | Backend  | Go 1.25                                        |
-| Database | PostgreSQL 17                                  |
+| Database | PostgreSQL 17 **or** OpenSearch 2              |
 
 ### What it demonstrates
 
 - **Server-side pagination** — the grid requests rows in pages, the backend returns only the requested slice
-- **Sorting & filtering** — sort/filter parameters are sent to the API and translated to parameterised SQL
+- **Sorting & filtering** — sort/filter parameters are sent to the API and translated to parameterised SQL (PostgreSQL) or OpenSearch query DSL (OpenSearch)
 - **Row grouping** — group by `category` and `subcategory` with drill-down, computed entirely server-side
-- **Dev Container** — one-click setup with pre-configured PostgreSQL, Go, and Node
+- **Dev Container** — one-click setup with pre-configured services (PostgreSQL or OpenSearch), Go, and Node
 
 ---
 
 ## Getting Started
 
-### Option A — Dev Container (recommended)
+### Option A — Dev Container with PostgreSQL (recommended)
 
 > Requires [VS Code](https://code.visualstudio.com/) + [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) + [Docker](https://docs.docker.com/get-docker/)
 
-1. **Open in Dev Container** — open the repo in VS Code, then `Ctrl+Shift+P` → **Dev Containers: Reopen in Container**. This starts PostgreSQL, installs dependencies, and configures environment variables automatically.
+1. **Open in Dev Container** — open the repo in VS Code, then `Ctrl+Shift+P` → **Dev Containers: Reopen in Container**. Select **"poc-aggrid-ssrm"** (the default PostgreSQL variant). This starts PostgreSQL, installs Go and Node dependencies, and configures environment variables automatically.
 
 2. **Seed the database**
 
@@ -47,7 +56,33 @@ This proof of concept explores how [AG-Grid's Server Side Row Model](https://www
 
 5. Open <http://localhost:5173>
 
-### Option B — Docker Compose (standalone)
+### Option A (OpenSearch) — Dev Container with OpenSearch
+
+> Requires [VS Code](https://code.visualstudio.com/) + [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) + [Docker](https://docs.docker.com/get-docker/) + at least **2 GB RAM** available to Docker
+
+1. **Open in Dev Container** — open the repo in VS Code, then `Ctrl+Shift+P` → **Dev Containers: Reopen in Container**. Select **"poc-aggrid-ssrm (OpenSearch)"**. This starts OpenSearch, installs Go and Node dependencies, and configures `OPENSEARCH_URL` and `OPENSEARCH_INDEX` automatically.
+
+2. **Seed the index**
+
+   ```bash
+   cd backend-opensearch && go run ./cmd/seed/
+   ```
+
+3. **Start the backend**
+
+   ```bash
+   cd backend-opensearch && go run .
+   ```
+
+4. **Start the frontend** (second terminal)
+
+   ```bash
+   cd frontend && npm run dev
+   ```
+
+5. Open <http://localhost:5173>
+
+### Option B — Docker Compose with PostgreSQL
 
 > Requires [Docker](https://docs.docker.com/get-docker/) & Docker Compose
 
@@ -65,17 +100,43 @@ Open <http://localhost:5173>
 | backend  | 8080 | Go REST API                 |
 | frontend | 5173 | React app (served by nginx) |
 
+### Option C — Docker Compose with OpenSearch
+
+```bash
+docker compose -f docker-compose.opensearch.yml up --build -d
+docker compose -f docker-compose.opensearch.yml run --rm seed
+```
+
+Open <http://localhost:5173>
+
+| Service    | Port | Description                 |
+| ---------- | ---- | --------------------------- |
+| opensearch | 9200 | OpenSearch 2 (single-node)  |
+| backend    | 8080 | Go REST API                 |
+| frontend   | 5173 | React app (served by nginx) |
+
+> **Note:** OpenSearch requires more memory than PostgreSQL. Ensure Docker has at least 2 GB of RAM available. The compose file caps the JVM heap at 512 MB (`OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m`).
+
 ---
 
 ## Development
 
-### Backend
+### Backend (PostgreSQL)
 
 ```bash
 cd backend
 go run .                # start the API (needs PostgreSQL)
 go test ./... -v        # all tests (unit + integration)
 go test ./query/... -v  # unit tests only (no DB required)
+```
+
+### Backend (OpenSearch)
+
+```bash
+cd backend-opensearch
+go run .                # start the API (needs OpenSearch on localhost:9200)
+go test ./... -v        # all tests (unit only; no live OpenSearch needed)
+go test ./query/... -v  # query-builder unit tests
 ```
 
 ### Frontend
@@ -128,9 +189,12 @@ Environment variables are documented in `.env.example`. In the Dev Container the
 | rating      | NUMERIC(3,2)  |               |
 | created_at  | TIMESTAMPTZ   | default NOW() |
 
+The OpenSearch index uses equivalent types: `keyword` for categorical fields, `float`/`integer` for numbers, `date` for timestamps, and a `text` + `.keyword` sub-field for `name` (to support both full-text and exact/wildcard filtering).
+
 ## Useful Links
 
 - [AG-Grid Server Side Row Model](https://www.ag-grid.com/react-data-grid/server-side-model/)
 - [Implementing the server side datasource](https://www.ag-grid.com/react-data-grid/server-side-model-datasource/#implementing-the-server-side-datasource)
 - [AG-Grid Row Grouping (SSRM)](https://www.ag-grid.com/react-data-grid/server-side-model-grouping/)
 - [AG-Grid Filtering (SSRM)](https://www.ag-grid.com/react-data-grid/server-side-model-filtering/)
+- [OpenSearch Go client](https://github.com/opensearch-project/opensearch-go)

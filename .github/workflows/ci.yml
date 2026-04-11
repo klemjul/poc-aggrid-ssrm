@@ -26,6 +26,27 @@ jobs:
           install-mode: goinstall
           working-directory: backend
 
+  lint-go-opensearch:
+    name: Lint Go (OpenSearch)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.25"
+          cache-dependency-path: backend-opensearch/go.sum
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        with:
+          version: v2.1.6
+          install-mode: goinstall
+          working-directory: backend-opensearch
+
   lint-frontend:
     name: Lint Frontend
     runs-on: ubuntu-latest
@@ -93,6 +114,24 @@ jobs:
           DB_SSLMODE: disable
         run: go test ./... -v -count=1
 
+  test-go-opensearch:
+    name: Go Tests (OpenSearch)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.25"
+          cache-dependency-path: backend-opensearch/go.sum
+
+      - name: Run Go tests (unit, no live OpenSearch required)
+        working-directory: backend-opensearch
+        run: go test ./... -v -count=1
+
   build-frontend:
     name: Build Frontend
     runs-on: ubuntu-latest
@@ -151,6 +190,91 @@ jobs:
           path: frontend/playwright-report/
           retention-days: 7
 
+  test-frontend-e2e-opensearch:
+    name: Frontend E2E Tests (OpenSearch)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      opensearch:
+        image: opensearchproject/opensearch:2
+        env:
+          discovery.type: single-node
+          DISABLE_SECURITY_PLUGIN: "true"
+          OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd "curl -sf http://localhost:9200/_cluster/health | grep -qv '\"status\":\"red\"'"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.25"
+          cache-dependency-path: backend-opensearch/go.sum
+
+      - name: Seed OpenSearch with test data
+        working-directory: backend-opensearch
+        env:
+          OPENSEARCH_URL: http://localhost:9200
+          SEED_TOTAL: "1000"
+        run: go run ./cmd/seed
+
+      - name: Start backend-opensearch server
+        working-directory: backend-opensearch
+        env:
+          OPENSEARCH_URL: http://localhost:9200
+          PORT: 8080
+        run: go run . &
+
+      - name: Wait for backend to be healthy
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/healthz; then
+              echo "Backend is ready"
+              exit 0
+            fi
+            echo "Waiting for backend... ($i/30)"
+            sleep 2
+          done
+          echo "Backend did not become healthy in time"
+          exit 1
+
+      - name: Set up Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install chromium --with-deps
+
+      - name: Run Playwright E2E tests (OpenSearch integration)
+        working-directory: frontend
+        env:
+          VITE_API_URL: http://localhost:8080
+        run: npm run test:e2e:opensearch
+
+      - name: Upload Playwright report (OpenSearch)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report-opensearch
+          path: frontend/playwright-report/
+          retention-days: 7
+
   build-docker:
     name: Build Docker Images
     runs-on: ubuntu-latest
@@ -185,3 +309,30 @@ jobs:
           file: ./frontend/Dockerfile
           push: false
           tags: poc-aggrid-ssrm/frontend:ci
+
+  build-docker-opensearch:
+    name: Build Docker Images (OpenSearch)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Build backend-opensearch image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: ./backend-opensearch
+          file: ./backend-opensearch/Dockerfile
+          push: false
+          tags: poc-aggrid-ssrm/backend-opensearch:ci
+
+      - name: Build backend-opensearch seed image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: ./backend-opensearch
+          file: ./backend-opensearch/Dockerfile.seed
+          push: false
+          tags: poc-aggrid-ssrm/seed-opensearch:ci
