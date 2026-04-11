@@ -16,7 +16,7 @@ Both variants expose the same HTTP API (`POST /api/search-products`) and work wi
 | Layer    | Technology                                     |
 | -------- | ---------------------------------------------- |
 | Frontend | React 19, TypeScript, Vite, AG-Grid Enterprise |
-| Backend  | Go 1.24                                        |
+| Backend  | Go 1.25                                        |
 | Database | PostgreSQL 17 **or** OpenSearch 2              |
 
 ### What it demonstrates

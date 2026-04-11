@@ -69,17 +69,23 @@ test.describe('ProductGrid – OpenSearch Integration', () => {
       timeout: 30_000,
     });
 
+    // Count visible rows before filtering
+    const rowsBefore = await page.locator('[role="gridcell"][col-id="name"]').count();
+    expect(rowsBefore).toBeGreaterThan(0);
+
+    // Use a mid-range threshold that is statistically safe even with 1 000 seeded
+    // docs (prices are uniform 1.00–999.99 so ~95% of products will be >= 50).
     const priceFilterInput = page.locator(
       'input[aria-label="Price Filter Input"][type="number"]',
     );
-    await priceFilterInput.fill('999');
+    await priceFilterInput.fill('50');
     await priceFilterInput.press('Enter');
 
     await expect(page.locator('.ag-overlay-loading-wrapper')).toHaveCount(0, {
       timeout: 30_000,
     });
 
-    // Grid should still display a result (there are products >= $999)
+    // Grid should display rows — products priced >= $50 definitely exist in the seed.
     await expect(
       page.locator('[role="gridcell"][col-id="name"]').first(),
     ).toBeVisible({ timeout: 30_000 });
@@ -118,11 +124,19 @@ test.describe('ProductGrid – OpenSearch Integration', () => {
       timeout: 30_000,
     });
 
-    // After sorting, the first price cell should be a low value (< 2.00)
-    const firstPriceCell = page.locator('[role="gridcell"][col-id="price"]').first();
-    await expect(firstPriceCell).toBeVisible({ timeout: 30_000 });
-    const priceText = await firstPriceCell.textContent();
-    const price = parseFloat(priceText?.replace(/[^0-9.]/g, '') ?? '0');
-    expect(price).toBeLessThan(2.0);
+    // After sorting ascending, verify the first several prices are non-decreasing.
+    const priceCells = page.locator('[role="gridcell"][col-id="price"]');
+    await expect(priceCells.first()).toBeVisible({ timeout: 30_000 });
+
+    const visibleCount = await priceCells.count();
+    const sampleSize = Math.min(5, visibleCount);
+    const priceTexts = await priceCells.evaluateAll(
+      (cells, n) => cells.slice(0, n).map((c) => c.textContent ?? ''),
+      sampleSize,
+    );
+    const prices = priceTexts.map((t) => parseFloat(t.replace(/[^0-9.]/g, '')));
+    for (let i = 1; i < prices.length; i++) {
+      expect(prices[i]).toBeGreaterThanOrEqual(prices[i - 1]);
+    }
   });
 });

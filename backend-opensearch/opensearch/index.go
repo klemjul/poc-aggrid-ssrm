@@ -47,6 +47,9 @@ func EnsureIndex(client *opensearchgo.Client, index string) error {
 	if res.StatusCode == 200 {
 		return nil
 	}
+	if res.StatusCode != 404 {
+		return fmt.Errorf("check index exists returned %s", res.Status())
+	}
 
 	// Index does not exist — create it.
 	res2, err := opensearchapi.IndicesCreateRequest{
@@ -61,8 +64,10 @@ func EnsureIndex(client *opensearchgo.Client, index string) error {
 	if res2.IsError() {
 		var e map[string]any
 		if err2 := json.NewDecoder(res2.Body).Decode(&e); err2 == nil {
-			if errType, _ := e["error"].(map[string]any)["type"].(string); errType == "resource_already_exists_exception" {
-				return nil
+			if errorObj, ok := e["error"].(map[string]any); ok {
+				if errType, ok := errorObj["type"].(string); ok && errType == "resource_already_exists_exception" {
+					return nil
+				}
 			}
 		}
 		return fmt.Errorf("create index returned %s", res2.Status())

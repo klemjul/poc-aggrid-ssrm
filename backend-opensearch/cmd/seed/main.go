@@ -76,7 +76,10 @@ func countDocs(client *opensearchgo.Client, index string) (int, error) {
 	}
 	defer res.Body.Close() //nolint:errcheck
 	if res.IsError() {
-		return 0, nil // index may not exist yet
+		if res.StatusCode == 404 {
+			return 0, nil // index may not exist yet
+		}
+		return 0, fmt.Errorf("count returned status %s", res.Status())
 	}
 	var cr struct {
 		Count int `json:"count"`
