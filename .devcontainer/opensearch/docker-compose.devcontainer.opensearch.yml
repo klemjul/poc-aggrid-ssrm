@@ -1,0 +1,9 @@
+services:
+  devcontainer:
+    image: mcr.microsoft.com/devcontainers/base:ubuntu-24.04
+    volumes:
+      - .:/workspace
+    command: sleep infinity
+    depends_on:
+      opensearch:
+        condition: service_healthy

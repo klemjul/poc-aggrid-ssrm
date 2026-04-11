@@ -24,17 +24,17 @@ Both variants expose the same HTTP API (`POST /api/search-products`) and work wi
 - **Server-side pagination** — the grid requests rows in pages, the backend returns only the requested slice
 - **Sorting & filtering** — sort/filter parameters are sent to the API and translated to parameterised SQL (PostgreSQL) or OpenSearch query DSL (OpenSearch)
 - **Row grouping** — group by `category` and `subcategory` with drill-down, computed entirely server-side
-- **Dev Container** — one-click setup with pre-configured PostgreSQL, Go, and Node
+- **Dev Container** — one-click setup with pre-configured services (PostgreSQL or OpenSearch), Go, and Node
 
 ---
 
 ## Getting Started
 
-### Option A — Dev Container (recommended, PostgreSQL)
+### Option A — Dev Container with PostgreSQL (recommended)
 
 > Requires [VS Code](https://code.visualstudio.com/) + [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) + [Docker](https://docs.docker.com/get-docker/)
 
-1. **Open in Dev Container** — open the repo in VS Code, then `Ctrl+Shift+P` → **Dev Containers: Reopen in Container**. This starts PostgreSQL, installs dependencies, and configures environment variables automatically.
+1. **Open in Dev Container** — open the repo in VS Code, then `Ctrl+Shift+P` → **Dev Containers: Reopen in Container**. Select **"poc-aggrid-ssrm"** (the default PostgreSQL variant). This starts PostgreSQL, installs Go and Node dependencies, and configures environment variables automatically.
 
 2. **Seed the database**
 
@@ -46,6 +46,32 @@ Both variants expose the same HTTP API (`POST /api/search-products`) and work wi
 
    ```bash
    cd backend && go run .
+   ```
+
+4. **Start the frontend** (second terminal)
+
+   ```bash
+   cd frontend && npm run dev
+   ```
+
+5. Open <http://localhost:5173>
+
+### Option A (OpenSearch) — Dev Container with OpenSearch
+
+> Requires [VS Code](https://code.visualstudio.com/) + [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) + [Docker](https://docs.docker.com/get-docker/) + at least **2 GB RAM** available to Docker
+
+1. **Open in Dev Container** — open the repo in VS Code, then `Ctrl+Shift+P` → **Dev Containers: Reopen in Container**. Select **"poc-aggrid-ssrm (OpenSearch)"**. This starts OpenSearch, installs Go and Node dependencies, and configures `OPENSEARCH_URL` and `OPENSEARCH_INDEX` automatically.
+
+2. **Seed the index**
+
+   ```bash
+   cd backend-opensearch && go run ./cmd/seed/
+   ```
+
+3. **Start the backend**
+
+   ```bash
+   cd backend-opensearch && go run .
    ```
 
 4. **Start the frontend** (second terminal)
