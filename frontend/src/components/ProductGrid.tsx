@@ -130,7 +130,7 @@ export default function ProductGrid() {
       minWidth: 120,
       sortable: true,
       resizable: true,
-      floatingFilter: true,
+      floatingFilter: false,
     }),
     [],
   );
