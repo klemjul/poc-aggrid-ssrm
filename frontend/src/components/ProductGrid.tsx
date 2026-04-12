@@ -34,12 +34,12 @@ function fetchSetFilterValues(colId: string, params: SetFilterValuesFuncParams) 
     body: JSON.stringify({ colId }),
   })
     .then((res) => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       return res.json() as Promise<{ values: string[] }>;
     })
     .then((data) => params.success(data.values))
     .catch((err) => {
-      console.error('filter-values fetch error:', err);
+      console.error(`filter-values fetch error for column "${colId}":`, err);
       params.success([]);
     });
 }

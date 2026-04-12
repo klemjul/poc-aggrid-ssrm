@@ -28,6 +28,7 @@ async function showColumnFilter(page: Page, colId: string): Promise<boolean> {
           key.startsWith('__reactProps') ||
           key.startsWith('__reactInternals')
         ) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let fiber = (el as Record<string, any>)[key];
           while (fiber) {
             if (fiber.stateNode?.api) return fiber.stateNode.api;
