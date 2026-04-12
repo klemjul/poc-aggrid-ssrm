@@ -353,39 +353,31 @@ test.describe('ProductGrid – AG Grid SSRM', () => {
     const opened = await showColumnFilter(page, 'category');
     expect(opened).toBe(true);
 
-    // Wait for the filter panel with set filter values to appear
+    // Wait for the set filter values panel to appear
     await expect(page.locator('.ag-set-filter-body-wrapper')).toBeVisible({ timeout: 10_000 });
 
     // Deselect all values then select only Electronics to apply a set filter
     const selectAllCheckbox = page
-      .locator('.ag-set-filter-select-all')
+      .locator('.ag-set-filter-item', { hasText: '(Select All)' })
       .locator('input[type="checkbox"]');
-    if (await selectAllCheckbox.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await selectAllCheckbox.click(); // deselect all
+    await expect(selectAllCheckbox).toBeVisible({ timeout: 5_000 });
+    await selectAllCheckbox.click(); // deselect all (filter applies live)
 
-      const electronicsCheckbox = page
-        .locator('.ag-set-filter-item', { hasText: 'Electronics' })
-        .locator('input[type="checkbox"]');
-      if (await electronicsCheckbox.isVisible()) {
-        await electronicsCheckbox.click();
-      }
+    const electronicsCheckbox = page
+      .locator('.ag-set-filter-item', { hasText: 'Electronics' })
+      .locator('input[type="checkbox"]');
+    await expect(electronicsCheckbox).toBeVisible();
+    await electronicsCheckbox.click(); // select Electronics (filter applies live)
 
-      // Apply the filter
-      const applyButton = page.locator('.ag-filter-apply-panel button', { hasText: /apply/i });
-      if (await applyButton.isVisible()) {
-        await applyButton.click();
-      }
-
-      // Verify the SSRM request contains a multi-filter or set filter model for category
-      await expect(async () => {
-        const multiFilterRequest = capturedRequests.find((r) => {
-          const fm = r.filterModel as Record<string, unknown> | undefined;
-          if (!fm) return false;
-          const catFilter = fm['category'] as Record<string, unknown> | undefined;
-          return catFilter?.filterType === 'multi' || catFilter?.filterType === 'set';
-        });
-        expect(multiFilterRequest).toBeDefined();
-      }).toPass({ timeout: 10_000 });
-    }
+    // Verify the SSRM request contains a multi-filter or set filter model for category
+    await expect(async () => {
+      const multiFilterRequest = capturedRequests.find((r) => {
+        const fm = r.filterModel as Record<string, unknown> | undefined;
+        if (!fm) return false;
+        const catFilter = fm['category'] as Record<string, unknown> | undefined;
+        return catFilter?.filterType === 'multi' || catFilter?.filterType === 'set';
+      });
+      expect(multiFilterRequest).toBeDefined();
+    }).toPass({ timeout: 10_000 });
   });
 });

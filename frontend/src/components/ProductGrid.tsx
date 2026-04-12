@@ -40,7 +40,7 @@ function fetchSetFilterValues(colId: string, params: SetFilterValuesFuncParams) 
     .then((data) => params.success(data.values))
     .catch((err) => {
       console.error(`filter-values fetch error for column "${colId}":`, err);
-      params.success([]);
+      params.fail();
     });
 }
 

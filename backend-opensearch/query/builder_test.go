@@ -542,3 +542,34 @@ func TestBuildFilterValuesBody_InjectionAttempt(t *testing.T) {
 		t.Fatal("expected error for injection attempt colId")
 	}
 }
+
+func TestBuildFilterValuesBody_LimitClamped(t *testing.T) {
+	body, err := BuildFilterValuesBody(FilterValuesRequest{ColID: "category", Limit: 99999})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	b, _ := json.Marshal(body)
+	s := string(b)
+	// The limit should be clamped to maxFilterValuesLimit (1000), not 99999
+	if containsStr(s, `99999`) {
+		t.Errorf("expected limit to be clamped, but 99999 found in body: %s", s)
+	}
+	if !containsStr(s, `1000`) {
+		t.Errorf("expected clamped limit of 1000 in body, got: %s", s)
+	}
+}
+
+func TestBuildFilterValuesBody_OrderByKey(t *testing.T) {
+	body, err := BuildFilterValuesBody(FilterValuesRequest{ColID: "category"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	b, _ := json.Marshal(body)
+	s := string(b)
+	if !containsStr(s, `"_key"`) {
+		t.Errorf("expected _key ordering in terms aggregation, got: %s", s)
+	}
+	if !containsStr(s, `"asc"`) {
+		t.Errorf("expected asc ordering in terms aggregation, got: %s", s)
+	}
+}

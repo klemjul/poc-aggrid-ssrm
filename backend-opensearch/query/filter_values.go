@@ -21,6 +21,10 @@ type FilterValuesResponse struct {
 	Values []string `json:"values"`
 }
 
+// maxFilterValuesLimit is the upper bound for the `limit` request parameter to
+// prevent excessively large terms aggregations.
+const maxFilterValuesLimit = 1000
+
 // BuildFilterValuesBody builds the OpenSearch aggregation body for fetching
 // global distinct values for a whitelisted column. If searchText is provided,
 // it narrows results to values starting with that prefix (case-insensitive).
@@ -34,6 +38,9 @@ func BuildFilterValuesBody(req FilterValuesRequest) (map[string]any, error) {
 	if limit <= 0 {
 		limit = 200
 	}
+	if limit > maxFilterValuesLimit {
+		limit = maxFilterValuesLimit
+	}
 
 	body := map[string]any{
 		"size": 0,
@@ -42,6 +49,7 @@ func BuildFilterValuesBody(req FilterValuesRequest) (map[string]any, error) {
 				"terms": map[string]any{
 					"field": col,
 					"size":  limit,
+					"order": map[string]any{"_key": "asc"},
 				},
 			},
 		},
