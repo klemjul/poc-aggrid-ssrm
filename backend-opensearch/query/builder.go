@@ -22,11 +22,14 @@ type SortModel struct {
 }
 
 // FilterModel represents a single column filter entry from AG-Grid.
+// It covers text/number filters, set filters, and multi-filters.
 type FilterModel struct {
-	FilterType string  `json:"filterType"`
-	Type       string  `json:"type"`
-	Filter     any     `json:"filter"`
-	FilterTo   float64 `json:"filterTo"`
+	FilterType string         `json:"filterType"`
+	Type       string         `json:"type"`
+	Filter     any            `json:"filter"`
+	FilterTo   float64        `json:"filterTo"`
+	Values     []string       `json:"values"`
+	FilterModels []*FilterModel `json:"filterModels"`
 }
 
 // SearchRequest mirrors the AG-Grid SSRM request body.
@@ -223,8 +226,50 @@ func buildFilterClause(field string, fm FilterModel) (any, error) {
 		return buildTextClause(field, fm)
 	case "number":
 		return buildNumberClause(field, fm)
+	case "set":
+		return buildSetClause(field, fm)
+	case "multi":
+		return buildMultiClause(field, fm)
 	default:
 		return nil, nil
+	}
+}
+
+func buildSetClause(field string, fm FilterModel) (any, error) {
+	if len(fm.Values) == 0 {
+		return nil, nil
+	}
+	kf := filterField(field)
+	vals := make([]any, len(fm.Values))
+	for i, v := range fm.Values {
+		vals[i] = v
+	}
+	return map[string]any{"terms": map[string]any{kf: vals}}, nil
+}
+
+func buildMultiClause(field string, fm FilterModel) (any, error) {
+	var clauses []any
+	for _, child := range fm.FilterModels {
+		if child == nil {
+			continue
+		}
+		clause, err := buildFilterClause(field, *child)
+		if err != nil {
+			return nil, err
+		}
+		if clause != nil {
+			clauses = append(clauses, clause)
+		}
+	}
+	switch len(clauses) {
+	case 0:
+		return nil, nil
+	case 1:
+		return clauses[0], nil
+	default:
+		return map[string]any{
+			"bool": map[string]any{"filter": clauses},
+		}, nil
 	}
 }
 

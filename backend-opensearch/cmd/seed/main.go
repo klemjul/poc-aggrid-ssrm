@@ -18,7 +18,7 @@ import (
 	"github.com/klemjul/poc-aggrid-ssrm/backend-opensearch/opensearch"
 )
 
-const batchSize   = 500
+const batchSize = 500
 const logInterval = 10_000
 
 var categories = []struct {
@@ -177,7 +177,7 @@ func main() {
 	index := getEnv("OPENSEARCH_INDEX", "products")
 
 	// SEED_TOTAL allows overriding the default document count (useful in CI).
-	totalDocs := 100_000
+	totalDocs := 1_000_000
 	if v := os.Getenv("SEED_TOTAL"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			totalDocs = n

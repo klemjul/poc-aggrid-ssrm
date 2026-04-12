@@ -28,6 +28,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/search-products", h.SearchProducts)
+	mux.HandleFunc("/api/filter-values", h.FilterValues)
 	mux.HandleFunc("/healthz", api.HealthCheck)
 
 	corsHandler := cors.New(cors.Options{

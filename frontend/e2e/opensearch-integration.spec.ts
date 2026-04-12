@@ -28,19 +28,67 @@ async function waitForSearchResponse(
   page: Page,
   predicate: (body: SearchRequestBody) => boolean,
 ): Promise<{ request: SearchRequestBody; response: SearchResponseBody }> {
-  const res = await page.waitForResponse((r) => {
-    const req = r.request();
-    if (!req.url().includes('/api/search-products') || req.method() !== 'POST') return false;
-    try {
-      return predicate(req.postDataJSON() as SearchRequestBody);
-    } catch {
-      return false;
-    }
-  });
+  const res = await page.waitForResponse(
+    (r) => {
+      const req = r.request();
+      if (!req.url().includes('/api/search-products') || req.method() !== 'POST') return false;
+      try {
+        return predicate(req.postDataJSON() as SearchRequestBody);
+      } catch {
+        return false;
+      }
+    },
+    { timeout: 15_000 },
+  );
   return {
     request: res.request().postDataJSON() as SearchRequestBody,
     response: (await res.json()) as SearchResponseBody,
   };
+}
+
+/**
+ * Applies an AG Grid filter model through the grid API. This avoids relying on
+ * floating-filter input DOM that may be hidden in some UI configurations.
+ */
+async function applyFilterModel(page: Page, model: Record<string, unknown>): Promise<void> {
+  const ok = await page.evaluate((nextModel) => {
+    function findGridApi(el: Element): { setFilterModel: (m: unknown) => void } | null {
+      const elRecord = el as unknown as Record<string, unknown>;
+      const keys = Object.keys(elRecord);
+      for (const key of keys) {
+        if (
+          key.startsWith('__reactFiber') ||
+          key.startsWith('__reactProps') ||
+          key.startsWith('__reactInternals')
+        ) {
+          let fiber = elRecord[key] as
+            | {
+                stateNode?: { api?: { setFilterModel: (m: unknown) => void } };
+                memoizedProps?: { api?: { setFilterModel: (m: unknown) => void } };
+                return?: unknown;
+              }
+            | undefined;
+
+          while (fiber) {
+            if (fiber.stateNode?.api) return fiber.stateNode.api;
+            if (fiber.memoizedProps?.api) return fiber.memoizedProps.api;
+            fiber = fiber.return as typeof fiber;
+          }
+        }
+      }
+      return null;
+    }
+
+    const root = document.querySelector('.ag-root-wrapper');
+    if (!root) return false;
+    const api = findGridApi(root);
+    if (!api) return false;
+
+    api.setFilterModel(nextModel);
+    return true;
+  }, model);
+
+  if (!ok) throw new Error('Could not access AG Grid API to apply filter model');
 }
 
 test.describe('ProductGrid – OpenSearch Integration', () => {
@@ -74,14 +122,19 @@ test.describe('ProductGrid – OpenSearch Integration', () => {
       (body) => body.filterModel?.name?.filterType === 'text',
     );
 
-    const nameFilterInput = page.locator('input[aria-label="Name Filter Input"]');
-    await nameFilterInput.fill('Premium');
-    await nameFilterInput.press('Enter');
+    await applyFilterModel(page, {
+      name: {
+        filterType: 'text',
+        type: 'contains',
+        filter: 'Premium',
+      },
+    });
 
     const { request, response } = await responsePromise;
 
     expect(request.filterModel?.name).toMatchObject({
       filterType: 'text',
+      type: 'contains',
       filter: 'Premium',
     });
 
@@ -102,13 +155,20 @@ test.describe('ProductGrid – OpenSearch Integration', () => {
       (body) => body.filterModel?.price?.filterType === 'number',
     );
 
-    const priceFilterInput = page.locator('input[aria-label="Price Filter Input"][type="number"]');
-    await priceFilterInput.fill('50');
-    await priceFilterInput.press('Enter');
+    await applyFilterModel(page, {
+      price: {
+        filterType: 'number',
+        type: 'lessThanOrEqual',
+        filter: 50,
+      },
+    });
 
     const { request, response } = await responsePromise;
 
-    expect(request.filterModel?.price).toMatchObject({ filterType: 'number' });
+    expect(request.filterModel?.price).toMatchObject({
+      filterType: 'number',
+      type: 'lessThanOrEqual',
+    });
     expect(Number(request.filterModel?.price?.filter)).toBe(50);
 
     // Every returned row should satisfy the price filter

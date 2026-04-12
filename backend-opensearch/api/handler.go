@@ -120,10 +120,9 @@ func (h *Handler) SearchProducts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	lastRow := -1
-	if req.StartRow+len(rows) >= totalCount {
-		lastRow = totalCount
-	}
+	// Return the total matching row count on every response so the frontend can
+	// map it directly to AG-Grid's rowCount in SSRM.
+	lastRow := totalCount
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(query.SearchResult{
@@ -137,4 +136,79 @@ func (h *Handler) SearchProducts(w http.ResponseWriter, r *http.Request) {
 // HealthCheck handles GET /healthz.
 func HealthCheck(w http.ResponseWriter, _ *http.Request) {
 	_, _ = fmt.Fprintln(w, "ok")
+}
+
+// filterValuesOSResponse mirrors the OpenSearch aggregation response for the
+// filter-values endpoint.
+type filterValuesOSResponse struct {
+	Aggregations struct {
+		Values struct {
+			Buckets []struct {
+				Key string `json:"key"`
+			} `json:"buckets"`
+		} `json:"values"`
+	} `json:"aggregations"`
+}
+
+// FilterValues handles POST /api/filter-values.
+// It returns global distinct values for a whitelisted column, optionally
+// narrowed by a search text prefix.
+func (h *Handler) FilterValues(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req query.FilterValuesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	body, err := query.BuildFilterValuesBody(req)
+	if err != nil {
+		http.Error(w, "invalid request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(body); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	res, err := opensearchapi.SearchRequest{
+		Index: []string{h.Index},
+		Body:  &buf,
+	}.Do(r.Context(), h.Client)
+	if err != nil {
+		log.Printf("opensearch filter-values error: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	defer res.Body.Close() //nolint:errcheck
+
+	if res.IsError() {
+		rawBody, _ := io.ReadAll(res.Body)
+		log.Printf("opensearch filter-values response error [%s]: %s", res.Status(), rawBody)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	var osResp filterValuesOSResponse
+	if err := json.NewDecoder(res.Body).Decode(&osResp); err != nil {
+		log.Printf("decode opensearch filter-values response: %v", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	values := make([]string, 0, len(osResp.Aggregations.Values.Buckets))
+	for _, b := range osResp.Aggregations.Values.Buckets {
+		values = append(values, b.Key)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(query.FilterValuesResponse{Values: values}); err != nil {
+		log.Printf("encode filter-values response: %v", err)
+	}
 }
