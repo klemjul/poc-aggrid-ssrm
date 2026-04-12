@@ -158,9 +158,9 @@ func TestSearchProducts_LeafQuery_Pagination_MoreRows(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	// 0 + 2 < 100 → more rows exist
-	if resp.LastRow != -1 {
-		t.Errorf("expected lastRow=-1 (more rows), got %d", resp.LastRow)
+	// Backend always returns the full total count for SSRM rowCount mapping.
+	if resp.LastRow != 100 {
+		t.Errorf("expected lastRow=100, got %d", resp.LastRow)
 	}
 }
 
@@ -276,9 +276,9 @@ func TestSearchProducts_GroupQuery_Pagination(t *testing.T) {
 	if len(resp.Rows) != 3 {
 		t.Errorf("expected 3 rows (paginated groups), got %d", len(resp.Rows))
 	}
-	// 0 + 3 < 10 → more rows exist
-	if resp.LastRow != -1 {
-		t.Errorf("expected lastRow=-1, got %d", resp.LastRow)
+	// Backend always returns the full total count for SSRM rowCount mapping.
+	if resp.LastRow != 10 {
+		t.Errorf("expected lastRow=10, got %d", resp.LastRow)
 	}
 }
 

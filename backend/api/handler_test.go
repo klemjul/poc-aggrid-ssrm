@@ -230,9 +230,9 @@ func TestSearchProducts_Pagination(t *testing.T) {
 	if len(resp.Rows) != 2 {
 		t.Errorf("expected 2 rows, got %d", len(resp.Rows))
 	}
-	// More rows exist so lastRow should be -1
-	if resp.LastRow != -1 {
-		t.Errorf("expected lastRow=-1, got %d", resp.LastRow)
+	// Backend always returns the full total count for SSRM rowCount mapping.
+	if resp.LastRow != 5 {
+		t.Errorf("expected lastRow=5, got %d", resp.LastRow)
 	}
 }
 

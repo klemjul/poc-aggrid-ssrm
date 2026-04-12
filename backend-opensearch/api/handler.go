@@ -120,10 +120,9 @@ func (h *Handler) SearchProducts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	lastRow := -1
-	if req.StartRow+len(rows) >= totalCount {
-		lastRow = totalCount
-	}
+	// Return the total matching row count on every response so the frontend can
+	// map it directly to AG-Grid's rowCount in SSRM.
+	lastRow := totalCount
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(query.SearchResult{

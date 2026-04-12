@@ -148,7 +148,9 @@ export default function ProductGrid() {
             return res.json();
           })
           .then((data: { rows: Record<string, unknown>[]; lastRow: number }) => {
-            params.success({ rowData: data.rows, rowCount: data.lastRow });
+            const rowCount =
+              Number.isFinite(data.lastRow) && data.lastRow >= 0 ? data.lastRow : undefined;
+            params.success({ rowData: data.rows, rowCount });
           })
           .catch((err) => {
             console.error('SSRM fetch error:', err);

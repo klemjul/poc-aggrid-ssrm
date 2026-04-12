@@ -14,7 +14,7 @@ import (
 	"github.com/klemjul/poc-aggrid-ssrm/backend/migration"
 )
 
-const totalRows = 100_000
+const totalRows = 10_000_000
 
 var categories = []struct {
 	name          string
