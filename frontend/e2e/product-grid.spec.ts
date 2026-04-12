@@ -105,8 +105,16 @@ test.describe('ProductGrid – AG Grid SSRM', () => {
     await page.goto('/');
     await expect(page.locator('.ag-overlay-loading-wrapper')).toHaveCount(0, { timeout: 10_000 });
 
-    // Type into the floating filter input for the "name" column using its aria-label
-    const nameFilterInput = page.locator('input[aria-label="Name Filter Input"]');
+    // Open the full filter panel for the "name" column via the AG Grid API
+    const opened = await showColumnFilter(page, 'name');
+    expect(opened).toBe(true);
+
+    // Fill the filter input inside the popup and apply
+    const nameFilterInput = page
+      .locator('.ag-popup')
+      .locator('input[aria-label="Filter Value"]')
+      .first();
+    await expect(nameFilterInput).toBeVisible({ timeout: 5_000 });
     await nameFilterInput.fill('Widget');
     await nameFilterInput.press('Enter');
 
@@ -143,10 +151,16 @@ test.describe('ProductGrid – AG Grid SSRM', () => {
     await page.goto('/');
     await expect(page.locator('.ag-overlay-loading-wrapper')).toHaveCount(0, { timeout: 10_000 });
 
-    // Use the number input for the price floating filter (not the disabled range input)
-    const priceFilterInput = page.locator(
-      'input[aria-label="Price Filter Input"][type="number"]',
-    );
+    // Open the full filter panel for the "price" column via the AG Grid API
+    const opened = await showColumnFilter(page, 'price');
+    expect(opened).toBe(true);
+
+    // Fill the number filter input inside the popup and apply
+    const priceFilterInput = page
+      .locator('.ag-popup')
+      .locator('input[type="number"][aria-label="Filter Value"]')
+      .first();
+    await expect(priceFilterInput).toBeVisible({ timeout: 5_000 });
     await priceFilterInput.fill('200');
     await priceFilterInput.press('Enter');
 
@@ -179,8 +193,7 @@ test.describe('ProductGrid – AG Grid SSRM', () => {
     await page.goto('/');
     await expect(page.locator('.ag-overlay-loading-wrapper')).toHaveCount(0, { timeout: 10_000 });
 
-    // Click on the "Name" column header (use role="columnheader" to avoid matching
-    // the floating filter row which also has col-id="name")
+    // Click on the "Name" column header to trigger sorting
     await page
       .locator('[role="columnheader"][col-id="name"] .ag-header-cell-label')
       .click();
@@ -255,8 +268,7 @@ test.describe('ProductGrid – AG Grid SSRM', () => {
     await page.goto('/');
     await expect(page.locator('.ag-overlay-loading-wrapper')).toHaveCount(0, { timeout: 10_000 });
 
-    // Open the column menu for "Category" using its column header role to avoid
-    // accidentally clicking the floating filter cell
+    // Open the column menu for "Category" to enable row grouping
     await page.locator('[role="columnheader"][col-id="category"]').hover();
     await page
       .locator('[role="columnheader"][col-id="category"] .ag-header-cell-menu-button')
