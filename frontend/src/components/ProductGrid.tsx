@@ -28,20 +28,23 @@ function formatDate(value: unknown): string {
 }
 
 function fetchSetFilterValues(colId: string, params: SetFilterValuesFuncParams) {
-  fetch(`${API_URL}/api/filter-values`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ colId }),
-  })
-    .then((res) => {
+  (async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/filter-values`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ colId }),
+      });
+
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      return res.json() as Promise<{ values: string[] }>;
-    })
-    .then((data) => params.success(data.values))
-    .catch((err) => {
+
+      const data = (await res.json()) as { values: string[] };
+      params.success(data.values);
+    } catch (err) {
       console.error(`filter-values fetch error for column "${colId}":`, err);
-      params.fail();
-    });
+      params.success([]);
+    }
+  })();
 }
 
 export default function ProductGrid() {
