@@ -337,3 +337,208 @@ func TestDisallowedField_Group(t *testing.T) {
 func containsStr(s, sub string) bool {
 	return strings.Contains(s, sub)
 }
+
+// --- Set filter ---
+
+func TestLeafBody_SetFilter_Category(t *testing.T) {
+	vals := []string{"Electronics", "Furniture"}
+	req := SearchRequest{
+		StartRow: 0,
+		EndRow:   100,
+		FilterModel: map[string]FilterModel{
+			"category": {FilterType: "set", Values: vals},
+		},
+	}
+	s := bodyJSON(t, req)
+	if !containsStr(s, `"terms"`) {
+		t.Errorf("expected terms query for set filter, got: %s", s)
+	}
+	if !containsStr(s, `"Electronics"`) || !containsStr(s, `"Furniture"`) {
+		t.Errorf("expected Electronics and Furniture in terms, got: %s", s)
+	}
+}
+
+func TestLeafBody_SetFilter_Empty(t *testing.T) {
+	req := SearchRequest{
+		StartRow: 0,
+		EndRow:   100,
+		FilterModel: map[string]FilterModel{
+			"category": {FilterType: "set", Values: []string{}},
+		},
+	}
+	s := bodyJSON(t, req)
+	// Empty set filter should produce match_all (no filter clause added)
+	if containsStr(s, `"terms"`) {
+		t.Errorf("expected no terms query for empty set filter, got: %s", s)
+	}
+}
+
+// --- Multi filter ---
+
+func TestLeafBody_MultiFilter_SetOnly(t *testing.T) {
+	setFM := &FilterModel{FilterType: "set", Values: []string{"Electronics"}}
+	req := SearchRequest{
+		StartRow: 0,
+		EndRow:   100,
+		FilterModel: map[string]FilterModel{
+			"category": {
+				FilterType:   "multi",
+				FilterModels: []*FilterModel{nil, setFM},
+			},
+		},
+	}
+	s := bodyJSON(t, req)
+	if !containsStr(s, `"terms"`) {
+		t.Errorf("expected terms query from set child, got: %s", s)
+	}
+	if !containsStr(s, `"Electronics"`) {
+		t.Errorf("expected Electronics in terms, got: %s", s)
+	}
+}
+
+func TestLeafBody_MultiFilter_TextOnly(t *testing.T) {
+	textFM := &FilterModel{FilterType: "text", Type: "contains", Filter: "elec"}
+	req := SearchRequest{
+		StartRow: 0,
+		EndRow:   100,
+		FilterModel: map[string]FilterModel{
+			"category": {
+				FilterType:   "multi",
+				FilterModels: []*FilterModel{textFM, nil},
+			},
+		},
+	}
+	s := bodyJSON(t, req)
+	if !containsStr(s, `"wildcard"`) {
+		t.Errorf("expected wildcard from text child, got: %s", s)
+	}
+	if !containsStr(s, `"*elec*"`) {
+		t.Errorf("expected *elec* wildcard, got: %s", s)
+	}
+}
+
+func TestLeafBody_MultiFilter_TextAndSet(t *testing.T) {
+	textFM := &FilterModel{FilterType: "text", Type: "contains", Filter: "elec"}
+	setFM := &FilterModel{FilterType: "set", Values: []string{"Electronics", "Gadgets"}}
+	req := SearchRequest{
+		StartRow: 0,
+		EndRow:   100,
+		FilterModel: map[string]FilterModel{
+			"category": {
+				FilterType:   "multi",
+				FilterModels: []*FilterModel{textFM, setFM},
+			},
+		},
+	}
+	s := bodyJSON(t, req)
+	if !containsStr(s, `"wildcard"`) {
+		t.Errorf("expected wildcard from text child, got: %s", s)
+	}
+	if !containsStr(s, `"terms"`) {
+		t.Errorf("expected terms from set child, got: %s", s)
+	}
+	// Two active filters → combined with bool.filter
+	if !containsStr(s, `"bool"`) {
+		t.Errorf("expected bool wrapper for two active filters, got: %s", s)
+	}
+}
+
+func TestLeafBody_MultiFilter_AllNil(t *testing.T) {
+	req := SearchRequest{
+		StartRow: 0,
+		EndRow:   100,
+		FilterModel: map[string]FilterModel{
+			"category": {
+				FilterType:   "multi",
+				FilterModels: []*FilterModel{nil, nil},
+			},
+		},
+	}
+	s := bodyJSON(t, req)
+	// No active child filters → should produce match_all
+	if containsStr(s, `"terms"`) || containsStr(s, `"wildcard"`) {
+		t.Errorf("expected no filter clause for all-nil multi filter, got: %s", s)
+	}
+}
+
+// --- Filter values body ---
+
+func TestBuildFilterValuesBody_Category(t *testing.T) {
+	body, err := BuildFilterValuesBody(FilterValuesRequest{ColID: "category"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	b, _ := json.Marshal(body)
+	s := string(b)
+	if !containsStr(s, `"terms"`) {
+		t.Errorf("expected terms aggregation, got: %s", s)
+	}
+	if !containsStr(s, `"category"`) {
+		t.Errorf("expected category field in aggregation, got: %s", s)
+	}
+}
+
+func TestBuildFilterValuesBody_Subcategory(t *testing.T) {
+	body, err := BuildFilterValuesBody(FilterValuesRequest{ColID: "subcategory"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	b, _ := json.Marshal(body)
+	s := string(b)
+	if !containsStr(s, `"subcategory"`) {
+		t.Errorf("expected subcategory field, got: %s", s)
+	}
+}
+
+func TestBuildFilterValuesBody_WithSearchText(t *testing.T) {
+	body, err := BuildFilterValuesBody(FilterValuesRequest{ColID: "category", SearchText: "elec"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	b, _ := json.Marshal(body)
+	s := string(b)
+	if !containsStr(s, `"prefix"`) {
+		t.Errorf("expected prefix query when searchText provided, got: %s", s)
+	}
+	if !containsStr(s, `"elec"`) {
+		t.Errorf("expected searchText value in prefix query, got: %s", s)
+	}
+}
+
+func TestBuildFilterValuesBody_DefaultLimit(t *testing.T) {
+	body, err := BuildFilterValuesBody(FilterValuesRequest{ColID: "category"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	b, _ := json.Marshal(body)
+	s := string(b)
+	if !containsStr(s, `200`) {
+		t.Errorf("expected default limit of 200, got: %s", s)
+	}
+}
+
+func TestBuildFilterValuesBody_CustomLimit(t *testing.T) {
+	body, err := BuildFilterValuesBody(FilterValuesRequest{ColID: "category", Limit: 50})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	b, _ := json.Marshal(body)
+	s := string(b)
+	if !containsStr(s, `50`) {
+		t.Errorf("expected custom limit 50, got: %s", s)
+	}
+}
+
+func TestBuildFilterValuesBody_DisallowedCol(t *testing.T) {
+	_, err := BuildFilterValuesBody(FilterValuesRequest{ColID: "price"})
+	if err == nil {
+		t.Fatal("expected error for disallowed colId")
+	}
+}
+
+func TestBuildFilterValuesBody_InjectionAttempt(t *testing.T) {
+	_, err := BuildFilterValuesBody(FilterValuesRequest{ColID: "'; DROP TABLE products; --"})
+	if err == nil {
+		t.Fatal("expected error for injection attempt colId")
+	}
+}

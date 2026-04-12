@@ -293,3 +293,125 @@ func TestSearchProducts_OpenSearchError(t *testing.T) {
 		t.Errorf("expected 500 when OpenSearch returns error, got %d", w.Code)
 	}
 }
+
+// --- FilterValues handler ---
+
+// postFilterValues sends a POST /api/filter-values request to the handler.
+func postFilterValues(t *testing.T, h *api.Handler, req query.FilterValuesRequest) *httptest.ResponseRecorder {
+	t.Helper()
+	body, _ := json.Marshal(req)
+	r := httptest.NewRequest(http.MethodPost, "/api/filter-values", bytes.NewReader(body))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.FilterValues(w, r)
+	return w
+}
+
+func TestFilterValues_CategoryReturnsValues(t *testing.T) {
+	osResp := `{
+		"aggregations": {
+			"values": {
+				"buckets": [
+					{"key": "Electronics", "doc_count": 10},
+					{"key": "Furniture",   "doc_count": 5}
+				]
+			}
+		}
+	}`
+	h := newMockHandler(t, osResp, 200)
+	w := postFilterValues(t, h, query.FilterValuesRequest{ColID: "category"})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp query.FilterValuesResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Values) != 2 {
+		t.Errorf("expected 2 values, got %d", len(resp.Values))
+	}
+	if resp.Values[0] != "Electronics" {
+		t.Errorf("expected first value=Electronics, got %q", resp.Values[0])
+	}
+}
+
+func TestFilterValues_SubcategoryReturnsValues(t *testing.T) {
+	osResp := `{
+		"aggregations": {
+			"values": {
+				"buckets": [
+					{"key": "Phones",  "doc_count": 8},
+					{"key": "Tablets", "doc_count": 3}
+				]
+			}
+		}
+	}`
+	h := newMockHandler(t, osResp, 200)
+	w := postFilterValues(t, h, query.FilterValuesRequest{ColID: "subcategory"})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp query.FilterValuesResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Values) != 2 {
+		t.Errorf("expected 2 values, got %d", len(resp.Values))
+	}
+}
+
+func TestFilterValues_DisallowedColID(t *testing.T) {
+	h := newMockHandler(t, "", 200)
+	w := postFilterValues(t, h, query.FilterValuesRequest{ColID: "price"})
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for disallowed colId, got %d", w.Code)
+	}
+}
+
+func TestFilterValues_MethodNotAllowed(t *testing.T) {
+	h := newMockHandler(t, "", 200)
+	r := httptest.NewRequest(http.MethodGet, "/api/filter-values", nil)
+	w := httptest.NewRecorder()
+	h.FilterValues(w, r)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+}
+
+func TestFilterValues_InvalidJSON(t *testing.T) {
+	h := newMockHandler(t, "", 200)
+	r := httptest.NewRequest(http.MethodPost, "/api/filter-values", bytes.NewBufferString("{bad json"))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.FilterValues(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestFilterValues_OpenSearchError(t *testing.T) {
+	osErrResp := `{"error":{"type":"search_phase_execution_exception"}}`
+	h := newMockHandler(t, osErrResp, 500)
+	w := postFilterValues(t, h, query.FilterValuesRequest{ColID: "category"})
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", w.Code)
+	}
+}
+
+func TestFilterValues_ContentType(t *testing.T) {
+	osResp := `{"aggregations":{"values":{"buckets":[]}}}`
+	h := newMockHandler(t, osResp, 200)
+	w := postFilterValues(t, h, query.FilterValuesRequest{ColID: "category"})
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	ct := w.Header().Get("Content-Type")
+	if !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("expected Content-Type application/json, got %q", ct)
+	}
+}

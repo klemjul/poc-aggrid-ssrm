@@ -1,6 +1,11 @@
 import { useCallback, useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import type { ColDef, IServerSideDatasource, IServerSideGetRowsParams } from 'ag-grid-community';
+import type {
+  ColDef,
+  IServerSideDatasource,
+  IServerSideGetRowsParams,
+  SetFilterValuesFuncParams,
+} from 'ag-grid-community';
 
 import { themeQuartz } from 'ag-grid-community';
 
@@ -22,6 +27,23 @@ function formatDate(value: unknown): string {
   });
 }
 
+function fetchSetFilterValues(colId: string, params: SetFilterValuesFuncParams) {
+  fetch(`${API_URL}/api/filter-values`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ colId }),
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json() as Promise<{ values: string[] }>;
+    })
+    .then((data) => params.success(data.values))
+    .catch((err) => {
+      console.error('filter-values fetch error:', err);
+      params.success([]);
+    });
+}
+
 export default function ProductGrid() {
   const columnDefs = useMemo<ColDef[]>(
     () => [
@@ -34,14 +56,38 @@ export default function ProductGrid() {
       {
         field: 'category',
         headerName: 'Category',
-        filter: 'agTextColumnFilter',
+        filter: 'agMultiColumnFilter',
+        filterParams: {
+          filters: [
+            { filter: 'agTextColumnFilter' },
+            {
+              filter: 'agSetColumnFilter',
+              filterParams: {
+                values: (params: SetFilterValuesFuncParams) =>
+                  fetchSetFilterValues('category', params),
+              },
+            },
+          ],
+        },
         enableRowGroup: true,
         rowGroup: false,
       },
       {
         field: 'subcategory',
         headerName: 'Subcategory',
-        filter: 'agTextColumnFilter',
+        filter: 'agMultiColumnFilter',
+        filterParams: {
+          filters: [
+            { filter: 'agTextColumnFilter' },
+            {
+              filter: 'agSetColumnFilter',
+              filterParams: {
+                values: (params: SetFilterValuesFuncParams) =>
+                  fetchSetFilterValues('subcategory', params),
+              },
+            },
+          ],
+        },
         enableRowGroup: true,
         rowGroup: false,
       },

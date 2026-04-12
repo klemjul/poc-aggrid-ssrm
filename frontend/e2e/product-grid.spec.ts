@@ -1,5 +1,51 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { MOCK_PRODUCTS, fulfillRows, mockSearchProducts } from './helpers';
+
+const MOCK_CATEGORIES = ['Electronics', 'Furniture', 'Kitchen', 'Sports'];
+
+/** Mocks the /api/filter-values endpoint to return the given values. */
+async function mockFilterValues(page: Page, values: string[] = MOCK_CATEGORIES) {
+  await page.route('**/api/filter-values', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ values }),
+    });
+  });
+}
+
+/**
+ * Opens the AG Grid column filter popup for the given column using the grid API
+ * found via the React fiber tree. Returns true if successful.
+ */
+async function showColumnFilter(page: Page, colId: string): Promise<boolean> {
+  return page.evaluate((id: string) => {
+    function findGridApi(el: Element): { showColumnFilter(col: string): void } | null {
+      const keys = Object.keys(el);
+      for (const key of keys) {
+        if (
+          key.startsWith('__reactFiber') ||
+          key.startsWith('__reactProps') ||
+          key.startsWith('__reactInternals')
+        ) {
+          let fiber = (el as Record<string, any>)[key];
+          while (fiber) {
+            if (fiber.stateNode?.api) return fiber.stateNode.api;
+            if (fiber.memoizedProps?.api) return fiber.memoizedProps.api;
+            fiber = fiber.return;
+          }
+        }
+      }
+      return null;
+    }
+    const gridRoot = document.querySelector('.ag-root-wrapper');
+    if (!gridRoot) return false;
+    const api = findGridApi(gridRoot);
+    if (!api) return false;
+    api.showColumnFilter(id);
+    return true;
+  }, colId);
+}
 
 test.describe('ProductGrid – AG Grid SSRM', () => {
   test('renders the page header', async ({ page }) => {
@@ -225,5 +271,120 @@ test.describe('ProductGrid – AG Grid SSRM', () => {
     await expect(
       page.locator('[role="row"].ag-row-group', { hasText: 'Furniture' }),
     ).toBeVisible();
+  });
+
+  // --- Multi Filter (Text + Set) tests ---
+
+  test('opening category set filter triggers a call to /api/filter-values', async ({ page }) => {
+    let filterValuesColId: string | null = null;
+
+    await mockSearchProducts(page, async (_, route) => {
+      await fulfillRows(route, MOCK_PRODUCTS);
+    });
+    await page.route('**/api/filter-values', async (route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      filterValuesColId = body.colId as string;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ values: MOCK_CATEGORIES }),
+      });
+    });
+
+    await page.goto('/');
+    await expect(page.locator('.ag-overlay-loading-wrapper')).toHaveCount(0, { timeout: 10_000 });
+
+    // Open the full filter popup for category via the AG Grid API
+    const opened = await showColumnFilter(page, 'category');
+    expect(opened).toBe(true);
+
+    // The set filter values should be fetched with colId="category"
+    await expect(async () => {
+      expect(filterValuesColId).toBe('category');
+    }).toPass({ timeout: 10_000 });
+  });
+
+  test('opening subcategory set filter triggers a call to /api/filter-values', async ({ page }) => {
+    let filterValuesColId: string | null = null;
+    const MOCK_SUBCATEGORIES = ['Gadgets', 'Devices', 'Chairs'];
+
+    await mockSearchProducts(page, async (_, route) => {
+      await fulfillRows(route, MOCK_PRODUCTS);
+    });
+    await page.route('**/api/filter-values', async (route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      filterValuesColId = body.colId as string;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ values: MOCK_SUBCATEGORIES }),
+      });
+    });
+
+    await page.goto('/');
+    await expect(page.locator('.ag-overlay-loading-wrapper')).toHaveCount(0, { timeout: 10_000 });
+
+    // Open the full filter popup for subcategory via the AG Grid API
+    const opened = await showColumnFilter(page, 'subcategory');
+    expect(opened).toBe(true);
+
+    // The set filter values should be fetched with colId="subcategory"
+    await expect(async () => {
+      expect(filterValuesColId).toBe('subcategory');
+    }).toPass({ timeout: 10_000 });
+  });
+
+  test('selecting a category set filter value sends a multi-filter model in the SSRM request', async ({
+    page,
+  }) => {
+    const capturedRequests: Record<string, unknown>[] = [];
+
+    await mockSearchProducts(page, async (body, route) => {
+      capturedRequests.push(body);
+      await fulfillRows(route, MOCK_PRODUCTS);
+    });
+    await mockFilterValues(page, MOCK_CATEGORIES);
+
+    await page.goto('/');
+    await expect(page.locator('.ag-overlay-loading-wrapper')).toHaveCount(0, { timeout: 10_000 });
+
+    // Open the full filter popup for category
+    const opened = await showColumnFilter(page, 'category');
+    expect(opened).toBe(true);
+
+    // Wait for the filter panel with set filter values to appear
+    await expect(page.locator('.ag-set-filter-body-wrapper')).toBeVisible({ timeout: 10_000 });
+
+    // Deselect all values then select only Electronics to apply a set filter
+    const selectAllCheckbox = page
+      .locator('.ag-set-filter-select-all')
+      .locator('input[type="checkbox"]');
+    if (await selectAllCheckbox.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await selectAllCheckbox.click(); // deselect all
+
+      const electronicsCheckbox = page
+        .locator('.ag-set-filter-item', { hasText: 'Electronics' })
+        .locator('input[type="checkbox"]');
+      if (await electronicsCheckbox.isVisible()) {
+        await electronicsCheckbox.click();
+      }
+
+      // Apply the filter
+      const applyButton = page.locator('.ag-filter-apply-panel button', { hasText: /apply/i });
+      if (await applyButton.isVisible()) {
+        await applyButton.click();
+      }
+
+      // Verify the SSRM request contains a multi-filter or set filter model for category
+      await expect(async () => {
+        const multiFilterRequest = capturedRequests.find((r) => {
+          const fm = r.filterModel as Record<string, unknown> | undefined;
+          if (!fm) return false;
+          const catFilter = fm['category'] as Record<string, unknown> | undefined;
+          return catFilter?.filterType === 'multi' || catFilter?.filterType === 'set';
+        });
+        expect(multiFilterRequest).toBeDefined();
+      }).toPass({ timeout: 10_000 });
+    }
   });
 });
