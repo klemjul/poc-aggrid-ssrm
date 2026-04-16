@@ -16,8 +16,9 @@ import (
 
 // Handler holds the OpenSearch client and index name for HTTP handlers.
 type Handler struct {
-	Client *opensearchgo.Client
-	Index  string
+	Client     *opensearchgo.Client
+	Index      string
+	DebugQuery bool
 }
 
 // searchResponse mirrors the subset of the OpenSearch search response that this
@@ -124,11 +125,16 @@ func (h *Handler) SearchProducts(w http.ResponseWriter, r *http.Request) {
 	// map it directly to AG-Grid's rowCount in SSRM.
 	lastRow := totalCount
 
+	var queryBody any
+	if h.DebugQuery {
+		queryBody = body
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(query.SearchResult{
 		Rows:    rows,
 		LastRow: lastRow,
-		Query:   body,
+		Query:   queryBody,
 	}); err != nil {
 		log.Printf("encode response: %v", err)
 	}
