@@ -24,7 +24,7 @@ func main() {
 	}
 	log.Printf("opensearch index %q ready", index)
 
-	h := &api.Handler{Client: client, Index: index}
+	h := &api.Handler{Client: client, Index: index, DebugQuery: os.Getenv("DEBUG_QUERY") == "true"}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/search-products", h.SearchProducts)
