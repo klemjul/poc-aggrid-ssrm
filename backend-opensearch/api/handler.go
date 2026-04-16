@@ -128,6 +128,7 @@ func (h *Handler) SearchProducts(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(query.SearchResult{
 		Rows:    rows,
 		LastRow: lastRow,
+		Query:   body,
 	}); err != nil {
 		log.Printf("encode response: %v", err)
 	}

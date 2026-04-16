@@ -147,7 +147,10 @@ export default function ProductGrid() {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             return res.json();
           })
-          .then((data: { rows: Record<string, unknown>[]; lastRow: number }) => {
+          .then((data: { rows: Record<string, unknown>[]; lastRow: number; query?: unknown }) => {
+            if (data.query !== undefined) {
+              console.log('OpenSearch query:', JSON.stringify(data.query, null, 2));
+            }
             const rowCount =
               Number.isFinite(data.lastRow) && data.lastRow >= 0 ? data.lastRow : undefined;
             params.success({ rowData: data.rows, rowCount });

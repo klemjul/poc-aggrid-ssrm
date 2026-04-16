@@ -47,6 +47,7 @@ type SearchRequest struct {
 type SearchResult struct {
 	Rows    []map[string]any `json:"rows"`
 	LastRow int              `json:"lastRow"`
+	Query   any              `json:"query,omitempty"`
 }
 
 // allowedFields maps user-provided column names to OpenSearch field names.
